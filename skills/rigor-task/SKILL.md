@@ -12,16 +12,16 @@ Treat machine task state as the authoritative execution contract. Do not begin c
 1. Inspect the real repository, Git state, applicable AGENTS, entry point, and durable state.
 2. Choose the narrowest honest class from `mechanical`, `root-cause-fix`, `reference-adaptation`, `new-design`, `experiment`, `evaluation`, or `data-change`. Do not use `mechanical` to bypass evidence for research-sensitive model/training/data/evaluation changes; the Hook blocks configured sensitive paths.
 3. Run `scripts/rigorctl.py task start --objective <...> --class <...> --acceptance <L0-L4>`.
-4. Complete `$rigor-evidence` when the class requires research/design.
-5. Before consequential implementation, select one acceptance profile
-   already configured for this repository:
 
-   scripts/rigorctl.py verification select --profile <profile-name>
+4. Immediately select one acceptance profile already configured for this repository:
 
-   Do not invent or weaken a verification protocol inside the task.
-   If no suitable profile exists, return to `$rigor-setup`.
+   `scripts/rigorctl.py verification select --profile <profile-name>`
 
-Repeat either `--*-observed` flag when several planned executions are valid. The plan cannot be changed after implementation/governed execution starts. Do not lower criteria after seeing results.
+   The project profile is authoritative and may raise the task's required acceptance level. Do not invent or weaken a verification protocol inside the task. If no suitable profile exists, return to `$rigor-setup`.
+
+5. Complete `$rigor-evidence` when the class requires research/design. Freeze the design only after the project acceptance profile has established the real acceptance target.
+
+The selected project acceptance profile cannot be changed after implementation/governed execution starts. Do not create task-local acceptance definitions or lower criteria after seeing results.
 
 ## Resource plan
 
@@ -38,7 +38,7 @@ Compute cost is not a constraint. Optimize correctness, reproducibility, then wa
 
 ## Delegation
 
-Before each subagent spawn, create an assignment with every field in [references/task-contract.md](references/task-contract.md). Include the emitted `[RIGOR_ASSIGNMENT:asg_...]` token in the spawn prompt. Worker/runner assignments require the frozen verification plan. The Hook validates the contract and injects it into the child, including the task resource and verification plans.
+Before each subagent spawn, create an assignment with every field in [references/task-contract.md](references/task-contract.md). Include the emitted `[RIGOR_ASSIGNMENT:asg_...]` token in the spawn prompt. Worker/runner assignments require a selected project acceptance profile. The Hook validates the contract and injects it into the child, including the task resource plan and selected acceptance profile.
 
 The Lead selects references, architecture, integration, and final acceptance. Workers execute frozen designs; they do not choose replacements.
 

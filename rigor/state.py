@@ -300,6 +300,24 @@ class RigorState:
             raise ValueError(
                 "project profile cannot lower task acceptance requirement"
             )
+        if task.get("design"):
+            design_level = normalize_level(
+                task["design"].get("acceptance")
+            )
+
+            if LEVELS.index(design_level) < LEVELS.index(required):
+                raise ValueError(
+                    "selected project acceptance profile requires %s, "
+                    "but the frozen design only requires %s. "
+                    "Select the acceptance profile before design freeze "
+                    "or start a new task with the correct acceptance target."
+                    % (
+                        required,
+                        design_level,
+                    )
+                )
+
+        task["required_acceptance"] = required
 
         task["verification_plan"] = {
             "profile": profile_name,
@@ -390,7 +408,7 @@ class RigorState:
             if str(fields.get("integration", "")).strip() != str(design.get("integration", "")).strip():
                 raise ValueError("worker integration must match the frozen full-path design integration exactly")
         if role in {"worker", "runner"} and self.policy.get("verification", {}).get("require_frozen_plan", True) and not task.get("verification_plan"):
-            raise ValueError("worker/runner dispatch requires the frozen verification plan")
+            raise ValueError("worker/runner dispatch requires a selected project acceptance profile")
         if role == "runner" and self.policy.get("compute", {}).get("resource_plan_required_for_long_runs", True) and not task.get("resources"):
             raise ValueError("runner dispatch requires a frozen task resource plan")
         data = {

@@ -12,7 +12,7 @@ selected acceptance profile.
 2. Use the real commands/tools defined by the selected repository acceptance
 profile. Successful execution must be observed by PostToolUse.
 3. After the real downstream path consumes the change, record integration with `scripts/rigorctl.py integration record --entrypoint <...> --evidence <...> --observed <planned-command/tool/tool_use_id>`.
-4. Record the achieved level with `rigorctl acceptance record --level L0|L1|L2|L3|L4 --evidence <...> --observed <planned-command/tool/tool_use_id>`. L1-L4 require a successful matching observation from the frozen acceptance plan.
+4. Record the achieved level with `rigorctl acceptance record --level L0|L1|L2|L3|L4 --evidence <...> --observed <planned-command/tool/tool_use_id>`. L1-L4 require a successful matching observation from the selected project acceptance profile.
 5. For learned/stateful systems, include the applicable real update/persistence/reload/runtime/evaluator lifecycle required by the task. For other systems, map the levels to their real user/system path.
 6. Use fresh artifacts/checkpoints when the accepted outcome depends on generated state. Do not validate new code only against an old artifact unless old-artifact compatibility is the explicit task.
 7. If the required level cannot be reached, pause with the exact blocker instead of calling the task complete.

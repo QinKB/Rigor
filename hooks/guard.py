@@ -147,7 +147,7 @@ def pre_tool(ev,policy,state):
             if continuity_missing: emit(deny("Long/resource-heavy execution blocked: required continuity files are missing/empty: "+", ".join(continuity_missing))); return 0
             if not task: emit(deny("Long/resource-heavy execution requires an active Rigor task. Invoke $rigor-task first.")); return 0
             if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-                emit(deny("Long/resource-heavy execution requires the verification plan to be frozen before launch.")); return 0
+                emit(deny("Long/resource-heavy execution requires freeze the verification plan before implementation to be frozen before launch.")); return 0
             if policy.get("compute",{}).get("resource_plan_required_for_long_runs",True) and not task.get("resources"):
                 emit(deny("Long/resource-heavy execution requires a frozen resource plan backed by an observed resource inspection.")); return 0
             state.mark_implementation_started(tool,ev.get("tool_use_id"),invalidate=False)
@@ -166,7 +166,7 @@ def pre_tool(ev,policy,state):
             if gate in task.get("required_gates",[]) and not task["gates"][gate]["passed"]:
                 emit(deny("Repository write blocked: %s gate is incomplete. Use $rigor-evidence and freeze the supported design before implementation."%gate)); return 0
         if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-            emit(deny("Repository write blocked: freeze the verification plan before implementation so acceptance cannot be invented after seeing results.")); return 0
+            emit(deny("Repository write blocked: freeze the verification plan before implementation before implementation so acceptance cannot be invented after seeing results.")); return 0
         state.mark_implementation_started(tool,ev.get("tool_use_id"))
         emit({}); return 0
     if is_governed_mcp_write(tool, inp, policy, state.root):
