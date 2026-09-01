@@ -1,6 +1,6 @@
 {
   "name": "rigor",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Evidence-gated research engineering for Codex: research, design, delegation, integration, acceptance, continuity, and Git gates with lifecycle hook enforcement.",
   "author": {
     "name": "QinKB",
