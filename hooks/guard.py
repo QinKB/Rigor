@@ -51,7 +51,7 @@ def _main(ev):
 
     if event=="SessionStart":
         state.log("session_start",session_id=ev.get("session_id"),source=ev.get("source"))
-        emit(context("SessionStart",session_context(root,policy,state,policy_path),"CODEX-RIGOR")); return 0
+        emit(context("SessionStart",session_context(root,policy,state,policy_path),"RIGOR")); return 0
     if event=="PreCompact":
         state.log("pre_compact",session_id=ev.get("session_id"),trigger=ev.get("trigger")); return 0
     if event=="PostToolUse":
@@ -73,7 +73,7 @@ def _main(ev):
         ]
         if asg: text += ["",render_assignment(asg)]
         else: text += ["", "No bound Rigor assignment was found. Do not perform consequential implementation; return to the Lead if your task requires one."]
-        emit(context("SubagentStart","\n".join(text),"CODEX-RIGOR:%s"%agent_type.upper())); return 0
+        emit(context("SubagentStart","\n".join(text),"RIGOR:%s"%agent_type.upper())); return 0
     if event=="SubagentStop":
         if ev.get("stop_hook_active"): emit({}); return 0
         asg=state.agent_assignment(ev.get("agent_id") or "")

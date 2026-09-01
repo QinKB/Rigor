@@ -9,7 +9,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-PLUGIN_NAME = "codex-rigor"
+PLUGIN_NAME = "rigor"
 ROOT = Path(__file__).resolve().parents[1]
 
 

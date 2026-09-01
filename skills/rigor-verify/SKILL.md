@@ -5,10 +5,12 @@ description: Determine what a repository change actually proves and record integ
 
 # Rigor Verify
 
-Read [references/acceptance.md](references/acceptance.md) and validate the closest practical real outcome against the verification plan frozen before implementation.
+Read references/acceptance.md and validate against the repository's
+selected acceptance profile.
 
 1. Do not count additional low-level checks as a substitute for a missing higher-level gate.
-2. Use only planned integration/acceptance commands or tools. Successful execution must be observed by `PostToolUse`; failed or ambiguous observations cannot back L1-L4 evidence.
+2. Use the real commands/tools defined by the selected repository acceptance
+profile. Successful execution must be observed by PostToolUse.
 3. After the real downstream path consumes the change, record integration with `scripts/rigorctl.py integration record --entrypoint <...> --evidence <...> --observed <planned-command/tool/tool_use_id>`.
 4. Record the achieved level with `rigorctl acceptance record --level L0|L1|L2|L3|L4 --evidence <...> --observed <planned-command/tool/tool_use_id>`. L1-L4 require a successful matching observation from the frozen acceptance plan.
 5. For learned/stateful systems, include the applicable real update/persistence/reload/runtime/evaluator lifecycle required by the task. For other systems, map the levels to their real user/system path.

@@ -27,19 +27,19 @@ class LocalInstallerTests(unittest.TestCase):
             }))
             cp = subprocess.run([sys.executable, str(INSTALLER), "--home", str(home)], text=True, capture_output=True)
             self.assertEqual(cp.returncode, 0, cp.stderr + cp.stdout)
-            dest = home / ".codex" / "plugins" / "codex-rigor"
+            dest = home / ".codex" / "plugins" / "rigor"
             self.assertTrue((dest / ".codex-plugin" / "plugin.json").exists())
             data = json.loads(marketplace.read_text())
             names = [x["name"] for x in data["plugins"]]
-            self.assertEqual(names.count("codex-rigor"), 1)
+            self.assertEqual(names.count("rigor"), 1)
             self.assertIn("existing", names)
-            rigor = next(x for x in data["plugins"] if x["name"] == "codex-rigor")
-            self.assertEqual(rigor["source"]["path"], "./.codex/plugins/codex-rigor")
+            rigor = next(x for x in data["plugins"] if x["name"] == "rigor")
+            self.assertEqual(rigor["source"]["path"], "./.codex/plugins/rigor")
 
     def test_refuses_existing_without_force(self):
         with tempfile.TemporaryDirectory() as td:
             home = Path(td) / "home"
-            dest = home / ".codex" / "plugins" / "codex-rigor"
+            dest = home / ".codex" / "plugins" / "rigor"
             dest.mkdir(parents=True)
             (dest / "sentinel").write_text("keep")
             cp = subprocess.run([sys.executable, str(INSTALLER), "--home", str(home)], text=True, capture_output=True)

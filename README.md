@@ -27,7 +27,7 @@ The core principle is: Skills teach how to satisfy a requirement; Hooks + script
 After extracting this package, the included installer can copy the plugin into your personal Codex plugin directory and register it in the personal marketplace without replacing unrelated marketplace entries:
 
 ```bash
-cd /path/to/codex-rigor
+cd /path/to/rigor
 python3 scripts/install_local_plugin.py
 ```
 
@@ -38,7 +38,7 @@ For each target repository:
 1. Invoke `$rigor-setup`, or run the setup script from the installed plugin path:
 
 ```bash
-python3 /path/to/codex-rigor/scripts/setup_project.py --root /path/to/repo --install-agents
+python3 /path/to/rigor/scripts/setup_project.py --root /path/to/repo --install-agents
 ```
 
 2. Inspect `.codex/rigor.json`; set project-specific compute or sensitive-path overrides there when needed.

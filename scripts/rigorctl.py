@@ -30,7 +30,11 @@ def main():
     ts.add_parser("close")
     e=sp.add_parser("evidence"); es=e.add_subparsers(dest="action",required=True); x=es.add_parser("add"); x.add_argument("--kind",required=True,choices=["local-code","local-paper","primary-paper","official-spec","official-doc","upstream-code","external-search","issue","benchmark","other"]); x.add_argument("--source",required=True); x.add_argument("--locator",required=True); x.add_argument("--summary",required=True); x.add_argument("--observed",default=""); x.add_argument("--stage",choices=["discovered", "verified"],default="verified",)
     d=sp.add_parser("design"); ds=d.add_subparsers(dest="action",required=True); x=ds.add_parser("freeze"); x.add_argument("--reference",required=True); x.add_argument("--reference-evidence",action="append",required=True); x.add_argument("--target",required=True); x.add_argument("--method",required=True); x.add_argument("--integration",required=True); x.add_argument("--acceptance",required=True)
-    v=sp.add_parser("verification"); vs=v.add_subparsers(dest="action",required=True); x=vs.add_parser("plan"); x.add_argument("--entrypoint",required=True); x.add_argument("--protocol",required=True); x.add_argument("--integration-observed",action="append",required=True); x.add_argument("--acceptance-observed",action="append",required=True); x.add_argument("--artifact-policy",required=True); x.add_argument("--notes",default="")
+    v = sp.add_parser("verification")
+    vs = v.add_subparsers(dest="action", required=True)
+
+    x = vs.add_parser("select")
+    x.add_argument("--profile", required=True)
     r=sp.add_parser("resources"); rs=r.add_subparsers(dest="action",required=True); x=rs.add_parser("plan"); x.add_argument("--gpus",type=int,required=True); x.add_argument("--cpu-workers",type=int,required=True); x.add_argument("--strategy",required=True); x.add_argument("--notes",default=""); x.add_argument("--observed",required=True)
     a=sp.add_parser("assignment"); ass=a.add_subparsers(dest="action",required=True); x=ass.add_parser("create"); x.add_argument("--role",required=True,choices=["scout","researcher","runner","worker","reviewer"]); 
     for flag in ["objective","reference","target","method","integration","resources","write-scope","acceptance","output"]: x.add_argument("--"+flag,required=True)
@@ -50,7 +54,10 @@ def main():
         elif args.action=="close": print_json(state.close_task())
     elif args.cmd=="evidence": print_json(state.add_evidence(args.kind,args.source,args.locator,args.summary,args.observed,args.stage,))
     elif args.cmd=="design": print_json(state.freeze_design(args.reference,args.target,args.method,args.integration,args.acceptance,args.reference_evidence))
-    elif args.cmd=="verification": print_json(state.freeze_verification_plan(args.entrypoint,args.protocol,args.integration_observed,args.acceptance_observed,args.artifact_policy,args.notes))
+    elif args.cmd == "verification":
+        print_json(
+            state.select_verification_profile(args.profile)
+        )
     elif args.cmd=="resources": print_json(state.plan_resources(args.gpus,args.cpu_workers,args.strategy,args.notes,args.observed))
     elif args.cmd=="assignment":
         fields={"objective":args.objective,"reference":args.reference,"target":args.target,"method":args.method,"integration":args.integration,"resources":args.resources,"write_scope":args.write_scope,"acceptance":args.acceptance,"output":args.output,"stop_conditions":args.stop_condition}

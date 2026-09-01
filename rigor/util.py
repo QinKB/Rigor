@@ -32,7 +32,7 @@ def plugin_data_dir():
     raw = os.environ.get("PLUGIN_DATA") or os.environ.get("CLAUDE_PLUGIN_DATA")
     if raw:
         return Path(raw).expanduser().resolve()
-    return Path.home() / ".codex" / "codex-rigor-data"
+    return Path.home() / ".codex" / "rigor-data"
 
 
 def read_json(path, default=None):

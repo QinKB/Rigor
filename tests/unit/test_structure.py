@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class Structure(unittest.TestCase):
     def test_manifest_and_hooks(self):
-        m=json.loads((ROOT/".codex-plugin"/"plugin.json").read_text()); self.assertEqual(m["name"],"codex-rigor"); self.assertEqual(m["skills"],"./skills/"); self.assertEqual(m["hooks"],"./hooks/hooks.json")
+        m=json.loads((ROOT/".codex-plugin"/"plugin.json").read_text()); self.assertEqual(m["name"],"rigor"); self.assertEqual(m["skills"],"./skills/"); self.assertEqual(m["hooks"],"./hooks/hooks.json")
         h=json.loads((ROOT/"hooks"/"hooks.json").read_text())["hooks"]
         for event in ["SessionStart","SubagentStart","SubagentStop","PreToolUse","PostToolUse","Stop","SessionEnd"]: self.assertIn(event,h)
     def test_no_placeholders(self):

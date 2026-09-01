@@ -13,16 +13,13 @@ Treat machine task state as the authoritative execution contract. Do not begin c
 2. Choose the narrowest honest class from `mechanical`, `root-cause-fix`, `reference-adaptation`, `new-design`, `experiment`, `evaluation`, or `data-change`. Do not use `mechanical` to bypass evidence for research-sensitive model/training/data/evaluation changes; the Hook blocks configured sensitive paths.
 3. Run `scripts/rigorctl.py task start --objective <...> --class <...> --acceptance <L0-L4>`.
 4. Complete `$rigor-evidence` when the class requires research/design.
-5. Before repository writes or governed execution, freeze the verification plan. Specify the real entry point, authoritative protocol, the actual command/tool patterns that will prove integration and acceptance, and whether fresh artifacts are required:
+5. Before consequential implementation, select one acceptance profile
+   already configured for this repository:
 
-```bash
-scripts/rigorctl.py verification plan \
-  --entrypoint <real-entry> \
-  --protocol <authoritative-protocol> \
-  --integration-observed <planned-command-or-tool> \
-  --acceptance-observed <planned-command-or-tool> \
-  --artifact-policy <fresh-artifact-rule>
-```
+   scripts/rigorctl.py verification select --profile <profile-name>
+
+   Do not invent or weaken a verification protocol inside the task.
+   If no suitable profile exists, return to `$rigor-setup`.
 
 Repeat either `--*-observed` flag when several planned executions are valid. The plan cannot be changed after implementation/governed execution starts. Do not lower criteria after seeing results.
 

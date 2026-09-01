@@ -10,7 +10,7 @@ from .contracts import validate_assignment
 from .policy import required_gates, research_requirements
 from .resources import inspect_resources
 from .util import atomic_write_json, append_jsonl, now_iso, plugin_data_dir, project_key, read_json, run_capture
-
+import copy
 
 ROLE_ALIASES = {"explorer": "scout"}
 
@@ -154,8 +154,17 @@ class RigorState:
             provider = str(observed_record.get("provider") or "").lower()
             if kind == "local-code" and observed_kind not in {"local-code-search", "repository-tool"} and provider not in {"serena", "rg", "git"}:
                 raise ValueError("local-code evidence must be backed by an observed local repository/code search")
-            if kind == "local-paper" and observed_kind != "literature-tool":
-                raise ValueError("local-paper evidence must be backed by an observed literature-library read/search")
+            if (
+                kind == "local-paper"
+                and observed_kind not in {
+                    "literature-read",
+                    "literature-search",
+                }
+            ):
+                raise ValueError(
+                    "local-paper evidence must be backed by "
+                    "an observed literature-library read/search"
+                )
             if kind == "primary-paper":
                 if stage == "verified" and observed_kind not in {
                     "literature-read",
@@ -164,7 +173,12 @@ class RigorState:
                     raise ValueError(
                         "verified primary-paper evidence requires reading the actual paper/source content"
                     )
-            if kind in {"official-spec", "official-doc"} and observed_kind not in {"official-doc-tool", "web-source-read", "upstream-tool"}:
+            if kind in {"official-spec", "official-doc"} and observed_kind not in {
+    "official-doc-tool",
+    "web-source-read",
+    "upstream-code-read",
+    "upstream-tool",
+}:
                 raise ValueError("official evidence must be backed by an observed authoritative source read")
             if kind == "upstream-code":
                 if stage == "verified" and observed_kind != "upstream-code-read":
@@ -179,7 +193,12 @@ class RigorState:
                     "upstream-tool",
                 }:
                     raise ValueError("upstream-code discovery must come from an observed upstream source")
-            if kind == "issue" and observed_kind not in {"upstream-tool", "web-source-read", "external-search"}:
+            if kind == "issue" and observed_kind not in {
+                        "upstream-tool",
+                        "upstream-search",
+                        "web-source-read",
+                        "external-search",
+                    }:
                 raise ValueError("issue evidence must be backed by an observed upstream/web source")
             if kind == "external-search":
                 if observed_kind != "external-search":
@@ -329,7 +348,12 @@ class RigorState:
         if gpus < 0 or cpu_workers < 0:
             raise ValueError("resource counts must be non-negative")
         compute = self.policy.get("compute", {})
-        required_gpus = compute.get("project_cuda_gpus", "auto")
+        project_compute = (
+                self.policy
+                .get("project", {})
+                .get("compute", {})
+            )
+        required_gpus = project_compute.get("required_gpu_count",compute.get("project_cuda_gpus", "auto"),) 
         if isinstance(required_gpus, int) and gpus < required_gpus:
             raise ValueError("project policy requires at least %d CUDA GPUs for governed execution" % required_gpus)
         if not str(strategy or "").strip():
@@ -473,16 +497,54 @@ class RigorState:
             raise ValueError("matching PostToolUse observation did not prove successful execution: %s" % needle)
         raise ValueError("no successful PostToolUse observation matches: %s" % needle)
 
-    def _require_plan_observation(self, task, lane, observed_record):
-        if not self.policy.get("verification", {}).get("require_frozen_plan", True):
-            return
+    def _require_profile_observation(
+        self,
+        task,
+        level,
+        observed_record,
+    ):
         plan = task.get("verification_plan")
+
         if not plan:
-            raise ValueError("verification plan is not frozen")
-        patterns = plan.get("%s_patterns" % lane, [])
-        hay = " ".join(str(observed_record.get(k, "")) for k in ("query", "tool_name", "tool_use_id")).lower()
-        if not any(str(p).lower() in hay or (hay and hay in str(p).lower()) for p in patterns):
-            raise ValueError("successful observation is not part of the frozen %s plan" % lane)
+            raise ValueError("verification profile is not selected")
+
+        definition = plan.get("definition", {})
+        levels = definition.get("levels", {})
+        level_def = levels.get(level)
+
+        if not level_def:
+            raise ValueError(
+                "selected verification profile does not define %s"
+                % level
+            )
+
+        patterns = [
+            str(x).strip()
+            for x in level_def.get("observed_patterns", [])
+            if str(x).strip()
+        ]
+
+        if not patterns:
+            raise ValueError(
+                "%s has no observed_patterns in the selected verification profile"
+                % level
+            )
+
+        hay = " ".join(
+            str(observed_record.get(k, ""))
+            for k in ("query", "tool_name", "tool_use_id")
+        ).lower()
+
+        if not any(
+            pattern.lower() in hay
+            or (hay and hay in pattern.lower())
+            for pattern in patterns
+        ):
+            raise ValueError(
+                "successful observation does not match %s "
+                "of the selected verification profile"
+                % level
+            )
 
     def validate_assignment_result_evidence(self, assignment, result):
         level = normalize_level(result.get("acceptance"))
@@ -495,15 +557,18 @@ class RigorState:
             result.get("validation", ""),
             after_epoch=max(float(assignment.get("created_epoch") or 0), self._current_validation_epoch(task)),
         )
-        lane = "integration" if level == "L1" else "acceptance"
-        self._require_plan_observation(task, lane, observed)
+        self._require_profile_observation(
+            task,
+            level,
+            observed,
+        )
         return observed
 
     def record_integration(self, entrypoint, evidence, observed=""):
         task = self._require_task()
         obs = self._require_observed(observed, after_epoch=self._current_validation_epoch(task)) if self.policy.get("integration", {}).get("require_observed_execution", True) else None
         if obs is not None:
-            self._require_plan_observation(task, "integration", obs)
+            self._require_profile_observation(task, "L1", obs)
         rec = {"entrypoint": entrypoint, "evidence": evidence, "observed": observed, "observed_tool": obs, "at": now_iso()}
         task["integration"].append(rec)
         self._pass_gate(task, "integration", evidence)
@@ -517,7 +582,7 @@ class RigorState:
             if self.policy.get("acceptance", {}).get("require_observed_execution", True):
                 obs = self._require_observed(observed, after_epoch=self._current_validation_epoch(task))
             if obs is not None:
-                self._require_plan_observation(task, "acceptance", obs)
+                self._require_profile_observation(task, level, obs)
         rec = {"level": level, "evidence": evidence, "observed": observed, "observed_tool": obs, "at": now_iso()}
         task["acceptance"]["records"].append(rec)
         highest = task["acceptance"].get("highest")
