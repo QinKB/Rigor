@@ -1,4 +1,4 @@
-# Codex Rigor 1.0.0 Validation
+# Codex Rigor 1.1.0 Validation
 
 Validated on 2026-09-01 before packaging.
 

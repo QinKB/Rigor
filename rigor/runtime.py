@@ -13,7 +13,22 @@ ASSIGNMENT_RE = re.compile(r"(?:RIGOR_ASSIGNMENT\s*=\s*|\[RIGOR_ASSIGNMENT:)(asg
 def resolve(cwd):
     root=project_root(cwd); policy,path=load_policy(root); return root,policy,path,RigorState(root,policy)
 
+def targets_are_project_profile(targets, root=None):
+    targets = list(targets or [])
 
+    if not targets:
+        return False
+
+    for target in targets:
+        rel = relative_target(
+            target,
+            root,
+        )
+
+        if rel != ".codex/rigor.json":
+            return False
+
+    return True
 
 def agent_action_from_input(tool_input):
     if not isinstance(tool_input, dict):
@@ -77,6 +92,28 @@ def is_git_checkpoint(command, policy):
 
 
 def is_repository_write_command(command, policy, root=None):
+    if re.search(
+        r"\b("
+        r"Set-Content|"
+        r"Add-Content|"
+        r"Out-File|"
+        r"Copy-Item|"
+        r"Move-Item|"
+        r"Remove-Item|"
+        r"New-Item"
+        r")\b",
+        text,
+        re.I,
+    ):
+        return True
+
+    if re.search(
+        r"\[(?:System\.)?IO\.File\]::"
+        r"(?:WriteAllText|WriteAllBytes|AppendAllText)",
+        text,
+        re.I,
+    ):
+        return True
     if not policy.get("safety", {}).get("govern_shell_repository_writes", True):
         return False
     text = str(command or "")
@@ -212,8 +249,17 @@ def targets_are_continuity_files(targets, policy, root=None):
             raw = raw.replace("\\", "/").lstrip("./")
         normalized.append(raw)
     return bool(normalized) and all(x in allowed for x in normalized)
+def targets_are_project_profile(targets, root=None):
+    targets = list(targets or [])
+    if not targets:
+        return False
 
-def _relative_target(target, root=None):
+    return all(
+        relative_target(target, root) == ".codex/rigor.json"
+        for target in targets
+    )
+
+def relative_target(target, root=None):
     raw = str(target or "").strip().strip("'\"")
     if not raw:
         return None
@@ -234,12 +280,34 @@ def sensitive_target_rule(target, policy, root=None):
     cfg = policy.get("classification", {})
     if not cfg.get("guard_sensitive_paths", True):
         return None
-    rel = _relative_target(target, root)
+    rel = relative_target(target, root)
     if not rel:
         return None
     for rule in cfg.get("protected_path_rules", []):
         if any(fnmatch.fnmatch(rel, pattern) for pattern in rule.get("patterns", [])):
             return rule
+    project_patterns = (
+        policy
+        .get("project", {})
+        .get("protected_surfaces", [])
+    )
+
+    if any(
+        fnmatch.fnmatch(rel, pattern)
+        for pattern in project_patterns
+    ):
+        return {
+            "name": "project-protected",
+            "patterns": project_patterns,
+            "allowed_classes": [
+                task_class
+                for task_class in policy.get(
+                    "task_classes",
+                    {}
+                )
+                if task_class != "mechanical"
+            ],
+        }
     # Backward-compatible project override shape.
     patterns = cfg.get("sensitive_path_patterns", [])
     if any(fnmatch.fnmatch(rel, pattern) for pattern in patterns):

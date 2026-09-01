@@ -78,6 +78,49 @@ class GuardTests(unittest.TestCase):
     def test_write_without_task_denied(self):
         out=self.hook({"hook_event_name":"PreToolUse","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch"}})
         self.assertEqual(out["hookSpecificOutput"]["permissionDecision"],"deny")
+    def test_unconfigured_project_allows_profile_setup_write(self):
+        policy_path = self.repo / ".codex" / "rigor.json"
+        policy = json.loads(policy_path.read_text())
+
+        policy["project"] = {
+            "configured": False,
+            "type": "unknown",
+            "entrypoints": {},
+            "protected_surfaces": [],
+            "acceptance_profiles": {},
+            "compute": {},
+        }
+
+        policy_path.write_text(
+            json.dumps(policy, indent=2) + "\n"
+        )
+
+        out = self.hook({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(policy_path),
+                "content": "{}",
+            },
+        })
+
+        self.assertEqual(out, {})
+    def test_configured_project_profile_write_requires_task(self):
+        policy_path = self.repo / ".codex" / "rigor.json"
+
+        out = self.hook({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(policy_path),
+                "content": "{}",
+            },
+        })
+
+        self.assertEqual(
+            out["hookSpecificOutput"]["permissionDecision"],
+            "deny",
+        )
     def test_design_write_denied_until_evidence_and_freeze(self):
         self.ctl("task","start","--objective","adapt","--class","reference-adaptation","--acceptance","L1")
         out=self.hook({"hook_event_name":"PreToolUse","tool_name":"apply_patch","tool_input":{"command":"x"}}); self.assertEqual(out["hookSpecificOutput"]["permissionDecision"],"deny")
@@ -127,6 +170,44 @@ class GuardTests(unittest.TestCase):
         token=cp.stdout.splitlines()[0]; aid=token.split(":",1)[1].rstrip("]")
         out=self.hook({"hook_event_name":"PreToolUse","tool_name":"Agent","tool_input":{"agent_type":"worker","message":"do it "+token}}); self.assertEqual(out["hookSpecificOutput"]["permissionDecision"],"allow"); self.assertIn("CODEX RIGOR ASSIGNMENT",out["hookSpecificOutput"]["updatedInput"]["message"])
         out=self.hook({"hook_event_name":"SubagentStart","agent_id":"a1","agent_type":"worker"}); self.assertIn(aid,out["hookSpecificOutput"]["additionalContext"])
+        out = self.hook({
+            "hook_event_name": "PreToolUse",
+            "agent_id": "a1",
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(
+                    self.repo / "outside.py"
+                ),
+                "content": "x",
+            },
+        })
+
+        self.assertEqual(
+            out["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+            "deny",
+        )
+
+        self.assertIn(
+            "write_scope",
+            out["hookSpecificOutput"][
+                "permissionDecisionReason"
+            ],
+        )
+        out = self.hook({
+            "hook_event_name": "PreToolUse",
+            "agent_id": "a1",
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": str(
+                    self.repo / "a.py"
+                ),
+                "content": "x",
+            },
+        })
+
+        self.assertEqual(out, {})
         msg="RIGOR_ASSIGNMENT_RESULT\nassignment_id: %s\nstatus: complete\nacceptance: L0\nintegration: entry\nvalidation: unit\nevidence: log\nremaining: none"%aid
         out=self.hook({"hook_event_name":"SubagentStop","agent_id":"a1","agent_type":"worker","last_assistant_message":msg,"stop_hook_active":False}); self.assertEqual(out["decision"],"block")
     def test_bash_repository_write_cannot_bypass_design_gate(self):

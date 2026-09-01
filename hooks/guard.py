@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, os, re, sys
+import fnmatch, json, os, re, sys
 from pathlib import Path
 
 ROOT=Path(os.environ.get("PLUGIN_ROOT") or Path(__file__).resolve().parents[1])
@@ -8,7 +8,7 @@ sys.path.insert(0,str(ROOT))
 from rigor.acceptance import at_least
 from rigor.contracts import parse_result, render_assignment, validate_assignment
 from rigor.hook_io import allow, context, deny, emit, read_event
-from rigor.runtime import agent_action_from_input, agent_id_from_input, assignment_id_from_input, agent_type_from_input, inject_assignment, is_destructive, is_git_checkpoint, is_governed_mcp_write, is_long_run, is_repository_write_command, is_sensitive_repository_target, observed_tool_record, resolve, session_context, task_class_allows_sensitive_write, targets_are_continuity_files, tool_write_targets
+from rigor.runtime import agent_action_from_input, agent_id_from_input, assignment_id_from_input, agent_type_from_input, inject_assignment, is_destructive, is_git_checkpoint, is_governed_mcp_write, is_long_run, is_repository_write_command, is_sensitive_repository_target, observed_tool_record, resolve, session_context, task_class_allows_sensitive_write, targets_are_continuity_files, tool_write_targets, targets_are_project_profile, relative_target, targets_are_project_profile
 
 
 def main():
@@ -113,10 +113,80 @@ def _main(ev):
 
 def pre_tool(ev,policy,state):
     tool=ev.get("tool_name",""); inp=ev.get("tool_input") or {}; task=state.active_task()
+
+    agent_id = ev.get("agent_id")
+    current_assignment = (
+        state.agent_assignment(agent_id)
+        if agent_id
+        else None
+    )
+
     continuity_missing = state.continuity_missing()
     write_targets = tool_write_targets(tool, inp, state.root)
-    continuity_only_write = targets_are_continuity_files(write_targets, policy, state.root)
-    sensitive_targets = [x for x in write_targets if is_sensitive_repository_target(x, policy, state.root)]
+    if (
+        current_assignment
+        and current_assignment.get("role") == "worker"
+        and write_targets
+    ):
+        scope = str(
+            current_assignment.get(
+                "write_scope",
+                ""
+            )
+        ).strip()
+
+        for target in write_targets:
+            rel = relative_target(
+                target,
+                state.root,
+            )
+
+            if not rel:
+                continue
+
+            if not (
+                rel == scope
+                or fnmatch.fnmatch(
+                    rel,
+                    scope,
+                )
+                or rel.startswith(
+                    scope.rstrip("/") + "/"
+                )
+            ):
+                emit(
+                    deny(
+                        "Worker write blocked outside "
+                        "assignment write_scope: %s"
+                        % rel
+                    )
+                )
+                return 0
+
+    setup_profile_write = (
+        not policy.get("project", {}).get("configured", False)
+        and not agent_id
+        and targets_are_project_profile(
+            write_targets,
+            state.root,
+        )
+    )
+
+    continuity_only_write = targets_are_continuity_files(
+        write_targets,
+        policy,
+        state.root,
+    )
+
+    sensitive_targets = [
+        x
+        for x in write_targets
+        if is_sensitive_repository_target(
+            x,
+            policy,
+            state.root,
+        )
+    ]
     if task and sensitive_targets and not task_class_allows_sensitive_write(task, policy, sensitive_targets, state.root):
         emit(deny("Repository write blocked: task class %s is too weak for research-sensitive target(s): %s. Reclassify the task honestly before changing technical semantics." % (task.get("class"), ", ".join(sensitive_targets[:5])))); return 0
     if tool=="Bash":
@@ -130,6 +200,9 @@ def pre_tool(ev,policy,state):
                 return 0
         if is_destructive(command,policy): emit(deny("Codex Rigor blocked a destructive command. Use a reversible, task-scoped alternative.")); return 0
         if is_repository_write_command(command, policy, state.root) and not is_git_checkpoint(command, policy):
+            if setup_profile_write:
+                emit({})
+                return 0
             if continuity_only_write:
                 emit({}); return 0
             if task and task.get("class") == "mechanical" and not write_targets and policy.get("classification",{}).get("block_unknown_write_target_for_mechanical",True):
@@ -141,13 +214,13 @@ def pre_tool(ev,policy,state):
                 if gate in task.get("required_gates",[]) and not task["gates"][gate]["passed"]:
                     emit(deny("Repository write through Bash blocked: %s gate is incomplete. Freeze the supported design before implementation."%gate)); return 0
             if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-                emit(deny("Repository write through Bash blocked: freeze the verification plan before implementation.")); return 0
+                emit(deny("Repository write through Bash blocked: select the repository acceptance profile before implementation.")); return 0
             state.mark_implementation_started(tool,ev.get("tool_use_id"))
         if is_long_run(command,policy):
             if continuity_missing: emit(deny("Long/resource-heavy execution blocked: required continuity files are missing/empty: "+", ".join(continuity_missing))); return 0
             if not task: emit(deny("Long/resource-heavy execution requires an active Rigor task. Invoke $rigor-task first.")); return 0
             if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-                emit(deny("Long/resource-heavy execution requires freeze the verification plan before implementation to be frozen before launch.")); return 0
+                emit(deny("Long/resource-heavy execution requires select the repository acceptance profile before implementation to be frozen before launch.")); return 0
             if policy.get("compute",{}).get("resource_plan_required_for_long_runs",True) and not task.get("resources"):
                 emit(deny("Long/resource-heavy execution requires a frozen resource plan backed by an observed resource inspection.")); return 0
             state.mark_implementation_started(tool,ev.get("tool_use_id"),invalidate=False)
@@ -157,6 +230,9 @@ def pre_tool(ev,policy,state):
             if missing: emit(deny("Git checkpoint blocked until gates pass: "+", ".join(missing))); return 0
         emit({}); return 0
     if tool in {"apply_patch","Edit","Write"}:
+        if setup_profile_write:
+            emit({})
+            return 0
         if continuity_only_write:
             emit({}); return 0
         if continuity_missing: emit(deny("Repository write blocked: required continuity files are missing/empty: "+", ".join(continuity_missing))); return 0
@@ -166,10 +242,13 @@ def pre_tool(ev,policy,state):
             if gate in task.get("required_gates",[]) and not task["gates"][gate]["passed"]:
                 emit(deny("Repository write blocked: %s gate is incomplete. Use $rigor-evidence and freeze the supported design before implementation."%gate)); return 0
         if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-            emit(deny("Repository write blocked: freeze the verification plan before implementation before implementation so acceptance cannot be invented after seeing results.")); return 0
+            emit(deny("Repository write blocked: select the repository acceptance profile before implementation before implementation so acceptance cannot be invented after seeing results.")); return 0
         state.mark_implementation_started(tool,ev.get("tool_use_id"))
         emit({}); return 0
     if is_governed_mcp_write(tool, inp, policy, state.root):
+        if setup_profile_write:
+            emit({})
+            return 0
         if continuity_only_write:
             emit({}); return 0
         if task and task.get("class") == "mechanical" and not write_targets and policy.get("classification",{}).get("block_unknown_write_target_for_mechanical",True):
@@ -181,7 +260,7 @@ def pre_tool(ev,policy,state):
             if gate in task.get("required_gates",[]) and not task["gates"][gate]["passed"]:
                 emit(deny("MCP repository write blocked: %s gate is incomplete."%gate)); return 0
         if policy.get("verification",{}).get("require_frozen_plan",True) and not task.get("verification_plan"):
-            emit(deny("MCP repository write blocked: freeze the verification plan before implementation.")); return 0
+            emit(deny("MCP repository write blocked: select the repository acceptance profile before implementation.")); return 0
         state.mark_implementation_started(tool,ev.get("tool_use_id"))
         emit({}); return 0
     if tool=="Agent" or str(tool).lower()=="spawn_agent":

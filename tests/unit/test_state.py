@@ -65,6 +65,7 @@ class StateTests(unittest.TestCase):
         )
 
     def tearDown(self):
+        self.s.close()
         os.environ.pop("PLUGIN_DATA", None)
         self.tmp.cleanup()
 

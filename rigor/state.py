@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 import uuid
 from datetime import datetime
@@ -24,7 +25,14 @@ class RigorState:
     def __init__(self, root, policy):
         self.root = Path(root).resolve()
         self.policy = policy
-        self.base = plugin_data_dir() / "projects" / project_key(self.root)
+        self.base = (
+            plugin_data_dir()
+            / "projects"
+            / project_key(self.root)
+        )
+
+        self._acquire_project_lock()
+
         self.path = self.base / "state.json"
         self.ledger_path = self.base / "ledger.jsonl"
         self.data = read_json(self.path, None) or self._fresh()
@@ -32,6 +40,80 @@ class RigorState:
             self.data = self._fresh()
         self._upgrade()
         self.save()
+
+    def _acquire_project_lock(self):
+        self.base.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        self.lock_path = (
+            self.base
+            / "state.lock"
+        )
+
+        self.lock_path.touch(
+            exist_ok=True,
+        )
+
+        self._lock_handle = self.lock_path.open(
+            "r+b"
+        )
+
+        if self.lock_path.stat().st_size == 0:
+            self._lock_handle.write(b"\0")
+            self._lock_handle.flush()
+
+        self._lock_handle.seek(0)
+
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(
+                self._lock_handle.fileno(),
+                msvcrt.LK_LOCK,
+                1,
+            )
+        else:
+            import fcntl
+
+            fcntl.flock(
+                self._lock_handle.fileno(),
+                fcntl.LOCK_EX,
+            )
+
+
+    def close(self):
+        handle = getattr(
+            self,
+            "_lock_handle",
+            None,
+        )
+
+        if handle is None:
+            return
+
+        try:
+            handle.seek(0)
+
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(
+                    handle.fileno(),
+                    msvcrt.LK_UNLCK,
+                    1,
+                )
+            else:
+                import fcntl
+
+                fcntl.flock(
+                    handle.fileno(),
+                    fcntl.LOCK_UN,
+                )
+        finally:
+            handle.close()
+            self._lock_handle = None
 
     def _fresh(self):
         return {
@@ -295,6 +377,22 @@ class RigorState:
         required = normalize_level(
             profile.get("required_level", task["required_acceptance"])
         )
+        levels = profile.get("levels", {})
+
+        if required not in levels:
+            raise ValueError(
+                "selected acceptance profile does not define "
+                "its required level %s" % required
+            )
+
+        if required == "L4":
+            l4 = levels.get("L4", {})
+
+            if l4.get("authoritative") is not True:
+                raise ValueError(
+                    "an L4 acceptance profile must "
+                    "mark its L4 evaluator authoritative"
+                )
 
         if LEVELS.index(required) < LEVELS.index(task["required_acceptance"]):
             raise ValueError(
@@ -405,6 +503,23 @@ class RigorState:
             design = task["design"]
             if str(fields.get("reference", "")).strip() != str(design.get("reference", "")).strip():
                 raise ValueError("worker reference must match the frozen design reference exactly")
+            if (
+                str(fields.get("target", "")).strip()
+                != str(design.get("target", "")).strip()
+            ):
+                raise ValueError(
+                    "worker target must match "
+                    "the frozen design target exactly"
+                )
+
+            if (
+                str(fields.get("method", "")).strip()
+                != str(design.get("method", "")).strip()
+            ):
+                raise ValueError(
+                    "worker method must match "
+                    "the frozen design method exactly"
+                )
             if str(fields.get("integration", "")).strip() != str(design.get("integration", "")).strip():
                 raise ValueError("worker integration must match the frozen full-path design integration exactly")
         if role in {"worker", "runner"} and self.policy.get("verification", {}).get("require_frozen_plan", True) and not task.get("verification_plan"):
@@ -445,6 +560,39 @@ class RigorState:
             raise ValueError("agent_type/profile is required so the assignment role can be enforced")
         if expected != actual:
             raise ValueError("assignment role %s does not match agent type %s" % (asg.get("role"), agent_type))
+        for item in self.data.get(
+            "pending_assignments",
+            [],
+        ):
+            pending = self.assignment(
+                item.get("assignment_id")
+            )
+
+            if not pending:
+                continue
+
+            if (
+                pending.get("task_id")
+                != asg.get("task_id")
+            ):
+                continue
+
+            if (
+                pending.get("status") == "queued"
+                and _canonical_role(
+                    pending.get("role")
+                ) == expected
+            ):
+                raise ValueError(
+                    "another %s assignment is "
+                    "waiting for SubagentStart binding; "
+                    "wait for that binding before "
+                    "dispatching another %s"
+                    % (
+                        expected,
+                        expected,
+                    )
+                )
         self.data["pending_assignments"].append({"assignment_id": aid, "agent_type": actual, "queued_at": now_iso()})
         asg["status"] = "queued"
         self.save(); self.log("assignment_queued", assignment_id=aid, agent_type=actual)
@@ -604,10 +752,51 @@ class RigorState:
         rec = {"level": level, "evidence": evidence, "observed": observed, "observed_tool": obs, "at": now_iso()}
         task["acceptance"]["records"].append(rec)
         highest = task["acceptance"].get("highest")
-        if highest is None or LEVELS.index(level) > LEVELS.index(highest):
+
+        if (
+            highest is None
+            or LEVELS.index(level) > LEVELS.index(highest)
+        ):
             task["acceptance"]["highest"] = level
-        if at_least(task["acceptance"]["highest"], task["required_acceptance"]):
-            self._pass_gate(task, "acceptance", evidence)
+
+        profile = (
+            task
+            .get("verification_plan", {})
+            .get("definition", {})
+        )
+
+        defined_levels = profile.get(
+            "levels",
+            {},
+        )
+
+        required_index = LEVELS.index(
+            task["required_acceptance"]
+        )
+
+        required_profile_levels = {
+            candidate
+            for candidate in defined_levels
+            if candidate in LEVELS
+            and LEVELS.index(candidate) <= required_index
+        }
+
+        achieved_levels = {
+            record["level"]
+            for record in task["acceptance"]["records"]
+        }
+
+        if (
+            required_profile_levels
+            and required_profile_levels.issubset(
+                achieved_levels
+            )
+        ):
+            self._pass_gate(
+                task,
+                "acceptance",
+                evidence,
+            )
         self.save(); self.log("acceptance_recorded", task_id=task["id"], record=rec)
         return rec
 

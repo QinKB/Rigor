@@ -122,6 +122,22 @@ class NewDesignEndToEnd(unittest.TestCase):
                                     ),
                                 ],
                             },
+                            "L2": {
+                                "description": (
+                                    "real operational lifecycle"
+                                ),
+                                "observed_patterns": [
+                                    "python train_cycle.py",
+                                ],
+                            },
+                            "L3": {
+                                "description": (
+                                    "fresh runtime reload"
+                                ),
+                                "observed_patterns": [
+                                    "python reload_check.py",
+                                ],
+                            },
                             "L4": {
                                 "description": (
                                     "authoritative "
@@ -718,33 +734,13 @@ class NewDesignEndToEnd(unittest.TestCase):
                 {},
             )
 
-            hook({
-                "hook_event_name": "PostToolUse",
-                "tool_name": "Bash",
-                "tool_input": {
-                    "command": (
-                        "python "
-                        "authoritative_eval.py"
-                    ),
-                },
-                "tool_use_id": (
-                    "acceptance-run"
-                ),
-                "tool_response": {
-                    "exit_code": 0,
-                },
-            })
-
             ctl(
                 "integration",
                 "record",
                 "--entrypoint",
                 "real_entry",
                 "--evidence",
-                (
-                    "real downstream consumed "
-                    "changed result"
-                ),
+                "real downstream consumed changed result",
                 "--observed",
                 "integration-run",
             )
@@ -753,12 +749,78 @@ class NewDesignEndToEnd(unittest.TestCase):
                 "acceptance",
                 "record",
                 "--level",
+                "L1",
+                "--evidence",
+                "real integration succeeded",
+                "--observed",
+                "integration-run",
+            )
+
+            hook({
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "python train_cycle.py",
+                },
+                "tool_use_id": "operational-run",
+                "tool_response": {
+                    "exit_code": 0,
+                },
+            })
+
+            ctl(
+                "acceptance",
+                "record",
+                "--level",
+                "L2",
+                "--evidence",
+                "operational lifecycle succeeded",
+                "--observed",
+                "operational-run",
+            )
+
+            hook({
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "python reload_check.py",
+                },
+                "tool_use_id": "reload-run",
+                "tool_response": {
+                    "exit_code": 0,
+                },
+            })
+
+            ctl(
+                "acceptance",
+                "record",
+                "--level",
+                "L3",
+                "--evidence",
+                "fresh runtime reload succeeded",
+                "--observed",
+                "reload-run",
+            )
+
+            hook({
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "python authoritative_eval.py",
+                },
+                "tool_use_id": "acceptance-run",
+                "tool_response": {
+                    "exit_code": 0,
+                },
+            })
+
+            ctl(
+                "acceptance",
+                "record",
+                "--level",
                 "L4",
                 "--evidence",
-                (
-                    "authoritative evaluator "
-                    "produced valid task outcome"
-                ),
+                "authoritative evaluator produced valid task outcome",
                 "--observed",
                 "acceptance-run",
             )

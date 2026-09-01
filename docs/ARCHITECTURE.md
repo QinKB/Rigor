@@ -19,5 +19,8 @@ The plugin forbids unsupported substitutions generically: do not replace a selec
 
 - `apply_patch`, common Bash repository-write forms, and write-like repository/Serena/MCP tools pass through the same research/design/verification gate. This prevents the ordinary `sed -i`/redirection/`tee` bypass while acknowledging that hooks are not a formal shell sandbox.
 - Research evidence that satisfies a gate must be tied to successful observed tool activity for local code, literature/official sources, upstream code/issues, and external discovery. Observations are timestamp-bound to the active task; worker completion evidence is additionally bound to assignment creation time so stale prior checks cannot be replayed.
-- Resource plans capture a live resource snapshot. With `project_cuda_gpus: "auto"`, all currently eligible GPUs are required by default; impossible GPU plans fail closed. Projects that genuinely cannot use all eligible devices must change repository policy explicitly rather than silently under-allocating.
+- Resource plans capture a live resource snapshot. Project-specific minimum GPU requirements live in project.compute.required_gpu_count. Global compute policy controls scheduling behavior such as whether all currently eligible GPUs should be used when the project does not specify a fixed requirement.
+
+Rigor does not prescribe a launcher such as torchrun, accelerate, or a
+particular Python entry command.
 - A configurable sensitive-path classifier prevents the weak `mechanical` task class from being used to mutate common model/training/data/evaluation semantic paths. It is a misclassification guard, not an algorithm-specific policy.

@@ -239,8 +239,7 @@ For example, one machine-learning repository may define:
             "observed_patterns": [
               "checkpoint",
               "test"
-            ],
-            "fresh_artifact_required": true
+            ]
           },
           "L4": {
             "description": "authoritative evaluation",

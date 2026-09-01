@@ -2,6 +2,12 @@
   "name": "rigor",
   "version": "1.1.0",
   "description": "Evidence-gated research engineering for Codex: research, design, delegation, integration, acceptance, continuity, and Git gates with lifecycle hook enforcement.",
+  "author": {
+    "name": "QinKB",
+    "url": "https://github.com/QinKB"
+  },
+  "homepage": "https://github.com/QinKB/Rigor",
+  "repository": "https://github.com/QinKB/Rigor",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -12,12 +18,11 @@
     "subagents"
   ],
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Rigor",
     "shortDescription": "Evidence-gated research engineering",
     "longDescription": "Enforces evidence-backed design, bounded subagent contracts, real-path integration, acceptance evidence, project continuity, and completion gates while remaining compatible with Ponytail.",
-    "developerName": "QKB",
+    "developerName": "QinKB",
     "category": "Developer Tools",
     "capabilities": [
       "Instructions",

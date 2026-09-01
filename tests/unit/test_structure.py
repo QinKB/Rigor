@@ -21,9 +21,17 @@ class Structure(unittest.TestCase):
             ).read_text()
         )
 
-        self.assertEqual(
-            market["plugins"][0]["name"],
-            m["name"],
+        self.assertNotIn(
+            "hooks",
+            m,
+        )
+
+        self.assertTrue(
+            (
+                ROOT
+                / "hooks"
+                / "hooks.json"
+            ).is_file()
         )
 
         h = json.loads(

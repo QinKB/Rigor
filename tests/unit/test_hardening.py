@@ -94,6 +94,7 @@ class HardeningTests(unittest.TestCase):
         )
 
     def tearDown(self):
+        self.s.close()
         os.environ.pop(
             "PLUGIN_DATA",
             None,
@@ -702,6 +703,27 @@ class ShellWriteClassifierTests(unittest.TestCase):
             root = Path(td).resolve()
             policy = json.loads(
                 json.dumps(DEFAULT_POLICY)
+            )
+            policy["project"] = {
+                "protected_surfaces": [
+                    "src/coop/**",
+                ],
+            }
+            self.assertTrue(
+                is_sensitive_repository_target(
+                    "src/coop/fusion.py",
+                    policy,
+                    root,
+                )
+            )
+
+            self.assertFalse(
+                task_class_allows_sensitive_write(
+                    {"class": "mechanical"},
+                    policy,
+                    ["src/coop/fusion.py"],
+                    root,
+                )
             )
 
             self.assertTrue(
