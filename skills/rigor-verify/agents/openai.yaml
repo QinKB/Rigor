@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rigor Verify"
+  short_description: "Enforce real-path acceptance before completion"

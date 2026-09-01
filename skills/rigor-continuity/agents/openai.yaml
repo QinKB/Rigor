@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rigor Continuity"
+  short_description: "Maintain compact durable project state"

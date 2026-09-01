@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rigor Task"
+  short_description: "Create governed tasks and subagent contracts"

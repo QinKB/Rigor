@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rigor Setup"
+  short_description: "Initialize Codex Rigor for a repository"
