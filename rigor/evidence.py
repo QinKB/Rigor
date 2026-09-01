@@ -12,9 +12,39 @@ def classify_observed_tool(tool_name, tool_input):
         provider = "exa"
         kind = "web-source-read" if any(x in low for x in ("fetch", "contents", "get_page", "read")) else "external-search"
     elif "github" in low:
-        provider, kind = "github", "upstream-tool"
+        provider = "github"
+
+        if any(x in low for x in (
+            "fetch_file",
+            "fetch_blob",
+            "get_file",
+            "read_file",
+            "contents",
+        )):
+            kind = "upstream-code-read"
+
+        elif any(x in low for x in (
+            "search",
+            "find",
+            "list",
+        )):
+            kind = "upstream-search"
+
+        else:
+            kind = "upstream-tool"
     elif "papermeld" in low or "papermason" in low or "zotero" in low:
-        provider, kind = "local-literature", "literature-tool"
+        provider = "local-literature"
+
+        if any(x in low for x in (
+            "read",
+            "fetch",
+            "fulltext",
+            "content",
+            "get_item",
+        )):
+            kind = "literature-read"
+        else:
+            kind = "literature-search"
     elif "firecrawl" in low:
         provider = "firecrawl"
         kind = "external-search" if "search" in low else "web-source-read"

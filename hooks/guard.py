@@ -54,8 +54,6 @@ def _main(ev):
         emit(context("SessionStart",session_context(root,policy,state,policy_path),"CODEX-RIGOR")); return 0
     if event=="PreCompact":
         state.log("pre_compact",session_id=ev.get("session_id"),trigger=ev.get("trigger")); return 0
-    if event=="SessionEnd":
-        state.log("session_end",session_id=ev.get("session_id"),reason=ev.get("reason")); return 0
     if event=="PostToolUse":
         rec=observed_tool_record(ev); state.record_observed_tool(rec); return 0
     if event=="PreToolUse":
@@ -123,6 +121,13 @@ def pre_tool(ev,policy,state):
         emit(deny("Repository write blocked: task class %s is too weak for research-sensitive target(s): %s. Reclassify the task honestly before changing technical semantics." % (task.get("class"), ", ".join(sensitive_targets[:5])))); return 0
     if tool=="Bash":
         command=str(inp.get("command","") if isinstance(inp,dict) else "")
+        if re.search(r"(^|\s)git\s+push(?:\s|$)", command, re.I):
+            if not policy.get("git", {}).get("allow_push", False):
+                emit(deny(
+                    "Codex Rigor blocked git push. "
+                    "Pushing is an external write and requires explicit project/user authorization."
+                ))
+                return 0
         if is_destructive(command,policy): emit(deny("Codex Rigor blocked a destructive command. Use a reversible, task-scoped alternative.")); return 0
         if is_repository_write_command(command, policy, state.root) and not is_git_checkpoint(command, policy):
             if continuity_only_write:

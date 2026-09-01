@@ -18,8 +18,20 @@ def main():
     if policy_path.exists() and not args.force:
         print("policy exists: %s"%policy_path)
     else:
-        policy=json.loads(json.dumps(DEFAULT_POLICY)); policy["enabled"]=True
-        policy_path.write_text(json.dumps(policy,indent=2)+"\n",encoding="utf-8"); print("created: %s"%policy_path)
+        config = {
+    "schema_version": 2,
+    "enabled": True,
+    "project": {
+        "configured": False,
+        "type": "unknown",
+        "entrypoints": {},
+        "protected_surfaces": [],
+        "acceptance_profiles": {},
+        "compute": {},
+    },
+    "overrides": {},
+}
+        policy_path.write_text(json.dumps(config,indent=2)+"\n",encoding="utf-8"); print("created: %s"%policy_path)
     for name,body in MEMORY_TEMPLATES.items():
         p=root/name
         if not p.exists(): p.write_text(body,encoding="utf-8"); print("created: %s"%p)

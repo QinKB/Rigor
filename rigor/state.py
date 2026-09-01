@@ -132,7 +132,17 @@ class RigorState:
         self.save(); self.log("task_aborted", task_id=task["id"], reason=reason)
         return task
 
-    def add_evidence(self, kind, source, locator, summary, observed=""):
+    def add_evidence(
+        self,
+        kind,
+        source,
+        locator,
+        summary,
+        observed="",
+        stage="verified",
+    ):
+        if stage not in {"discovered", "verified"}:
+            raise ValueError("evidence stage must be discovered or verified")
         task = self._require_task()
         observed_record = None
         require_map = self.policy.get("research", {}).get("require_observed_kinds", {})
@@ -146,12 +156,29 @@ class RigorState:
                 raise ValueError("local-code evidence must be backed by an observed local repository/code search")
             if kind == "local-paper" and observed_kind != "literature-tool":
                 raise ValueError("local-paper evidence must be backed by an observed literature-library read/search")
-            if kind == "primary-paper" and observed_kind not in {"literature-tool", "web-source-read"}:
-                raise ValueError("primary-paper evidence must be backed by an observed paper/source read, not an unobserved citation")
+            if kind == "primary-paper":
+                if stage == "verified" and observed_kind not in {
+                    "literature-read",
+                    "web-source-read",
+                }:
+                    raise ValueError(
+                        "verified primary-paper evidence requires reading the actual paper/source content"
+                    )
             if kind in {"official-spec", "official-doc"} and observed_kind not in {"official-doc-tool", "web-source-read", "upstream-tool"}:
                 raise ValueError("official evidence must be backed by an observed authoritative source read")
-            if kind == "upstream-code" and observed_kind not in {"upstream-tool", "repository-tool"} and provider not in {"github", "git"}:
-                raise ValueError("upstream-code evidence must be backed by an observed upstream/repository inspection")
+            if kind == "upstream-code":
+                if stage == "verified" and observed_kind != "upstream-code-read":
+                    raise ValueError(
+                        "verified upstream-code evidence requires reading the exact upstream implementation; "
+                        "a search result is discovery evidence only"
+                    )
+
+                if stage == "discovered" and observed_kind not in {
+                    "upstream-search",
+                    "upstream-code-read",
+                    "upstream-tool",
+                }:
+                    raise ValueError("upstream-code discovery must come from an observed upstream source")
             if kind == "issue" and observed_kind not in {"upstream-tool", "web-source-read", "external-search"}:
                 raise ValueError("issue evidence must be backed by an observed upstream/web source")
             if kind == "external-search":
@@ -166,6 +193,7 @@ class RigorState:
         ev = {
             "id": "ev_" + uuid.uuid4().hex[:10],
             "kind": kind,
+            "stage": stage,
             "source": source,
             "locator": locator,
             "summary": summary,
@@ -199,6 +227,17 @@ class RigorState:
             if missing_ids:
                 raise ValueError("design references unknown evidence IDs: %s" % ", ".join(missing_ids))
             selected = [by_id[x] for x in ids]
+            unverified = [
+                ev["id"]
+                for ev in selected
+                if ev.get("stage") != "verified"
+            ]
+
+            if unverified:
+                raise ValueError(
+                    "design references must be verified evidence, not discovery evidence: "
+                    + ", ".join(unverified)
+                )
             selected_kinds = {ev.get("kind") for ev in selected}
             for group in design_policy.get("required_reference_groups", {}).get(task.get("class"), []):
                 if not selected_kinds.intersection(set(group)):
@@ -211,27 +250,53 @@ class RigorState:
         self.save(); self.log("design_frozen", task_id=task["id"], design=task["design"])
         return task["design"]
 
-    def freeze_verification_plan(self, entrypoint, protocol, integration_patterns, acceptance_patterns, artifact_policy, notes=""):
+    def select_verification_profile(self, profile_name):
         task = self._require_task()
+
         if task.get("implementation_started"):
-            raise ValueError("verification plan must be frozen before implementation or governed execution starts")
-        integration_patterns = [str(x).strip() for x in integration_patterns if str(x).strip()]
-        acceptance_patterns = [str(x).strip() for x in acceptance_patterns if str(x).strip()]
-        if not str(entrypoint).strip() or not str(protocol).strip() or not integration_patterns or not acceptance_patterns or not str(artifact_policy).strip():
-            raise ValueError("verification plan requires entrypoint, protocol, integration patterns, acceptance patterns, and artifact policy")
-        plan = {
-            "required_level": task["required_acceptance"],
-            "entrypoint": entrypoint,
-            "protocol": protocol,
-            "integration_patterns": integration_patterns,
-            "acceptance_patterns": acceptance_patterns,
-            "artifact_policy": artifact_policy,
-            "notes": notes,
+            raise ValueError(
+                "verification profile cannot change after implementation starts"
+            )
+
+        project = self.policy.get("project", {})
+
+        if not project.get("configured"):
+            raise ValueError(
+                "project profile is not configured; run $rigor-setup first"
+            )
+
+        profiles = project.get("acceptance_profiles", {})
+        profile = profiles.get(profile_name)
+
+        if not profile:
+            raise ValueError(
+                "unknown acceptance profile: %s" % profile_name
+            )
+
+        required = normalize_level(
+            profile.get("required_level", task["required_acceptance"])
+        )
+
+        if LEVELS.index(required) < LEVELS.index(task["required_acceptance"]):
+            raise ValueError(
+                "project profile cannot lower task acceptance requirement"
+            )
+
+        task["verification_plan"] = {
+            "profile": profile_name,
+            "definition": copy.deepcopy(profile),
             "frozen_at": now_iso(),
         }
-        task["verification_plan"] = plan
-        self.save(); self.log("verification_plan_frozen", task_id=task["id"], plan=plan)
-        return plan
+
+        self.save()
+
+        self.log(
+            "verification_profile_selected",
+            task_id=task["id"],
+            profile=profile_name,
+        )
+
+        return task["verification_plan"]
 
     def mark_implementation_started(self, tool_name, tool_use_id=None, invalidate=True):
         task = self._require_task()

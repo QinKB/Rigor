@@ -111,7 +111,8 @@ DEFAULT_POLICY = {
     },
     "git": {
         "require_checkpoint": True,
-        "require_clean_checkpoint": True,
+        "require_clean_checkpoint": False,
+        "allow_push": False,
     },
     "safety": {
         "deny_command_patterns": [
@@ -143,13 +144,29 @@ def _merge(base, override):
 
 def load_policy(root):
     path = Path(root) / ".codex" / "rigor.json"
+
     if not path.exists():
         return deepcopy(DEFAULT_POLICY), path
+
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        raw = {"enabled": False, "invalid": True}
-    return _merge(DEFAULT_POLICY, raw), path
+        raw = {
+            "enabled": False,
+            "invalid": True,
+        }
+
+    policy = deepcopy(DEFAULT_POLICY)
+
+    policy["enabled"] = bool(raw.get("enabled", False))
+    policy["schema_version"] = int(raw.get("schema_version", 1))
+
+    policy["project"] = deepcopy(raw.get("project", {}))
+
+    overrides = raw.get("overrides", {})
+    policy = _merge(policy, overrides)
+
+    return policy, path
 
 
 def required_gates(policy, task_class):
