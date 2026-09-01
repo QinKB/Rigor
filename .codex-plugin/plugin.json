@@ -1,5 +1,5 @@
 {
-  "name": "codex-rigor",
+  "name": "rigor",
   "version": "1.0.0",
   "description": "Evidence-gated research engineering for Codex: research, design, delegation, integration, acceptance, continuity, and Git gates with lifecycle hook enforcement.",
   "license": "MIT",
@@ -14,10 +14,10 @@
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json",
   "interface": {
-    "displayName": "Codex Rigor",
+    "displayName": "Rigor",
     "shortDescription": "Evidence-gated research engineering",
     "longDescription": "Enforces evidence-backed design, bounded subagent contracts, real-path integration, acceptance evidence, project continuity, and completion gates while remaining compatible with Ponytail.",
-    "developerName": "Codex Rigor",
+    "developerName": "Rigor",
     "category": "Developer Tools",
     "capabilities": [
       "Instructions",

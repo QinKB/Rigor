@@ -1,0 +1,20 @@
+{
+  "name": "rigor",
+  "interface": {
+    "displayName": "Rigor"
+  },
+  "plugins": [
+    {
+      "name": "rigor",
+      "source": {
+        "source": "local",
+        "path": "."
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

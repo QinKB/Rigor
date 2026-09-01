@@ -1,6 +1,6 @@
-# Codex Rigor
+# Rigor
 
-Codex Rigor is an evidence-gated research-engineering plugin for Codex. It complements, rather than replaces, minimalism plugins such as Ponytail.
+Rigor is an evidence-gated research-engineering plugin for Codex. It complements, rather than replaces, minimalism plugins such as Ponytail.
 
 - **Rigor** freezes what must be built, why, from which reference, how it integrates, which employee owns it, which resources it may use, and what evidence proves completion.
 - **Ponytail** may simplify the implementation only inside that frozen contract.
