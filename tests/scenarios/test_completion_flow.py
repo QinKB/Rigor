@@ -8,9 +8,50 @@ class CompletionFlow(unittest.TestCase):
             subprocess.check_call(["git","init","-q",str(repo)]); subprocess.check_call(["git","-C",str(repo),"config","user.email","t@example.com"]); subprocess.check_call(["git","-C",str(repo),"config","user.name","T"])
             (repo/"x.txt").write_text("x\n"); subprocess.check_call(["git","-C",str(repo),"add","."]); subprocess.check_call(["git","-C",str(repo),"commit","-qm","init"])
             subprocess.check_call([os.sys.executable,str(ROOT/"scripts"/"setup_project.py"),"--root",str(repo)],env=env,stdout=subprocess.DEVNULL)
+            policy_path = repo / ".codex" / "rigor.json"
+            policy = json.loads(
+                policy_path.read_text()
+            )
+
+            policy["project"] = {
+                "configured": True,
+                "type": "test",
+                "entrypoints": {
+                    "integration": "real-entry",
+                    "evaluation": "real-entry",
+                },
+                "protected_surfaces": [],
+                "acceptance_profiles": {
+                    "mechanical-l1": {
+                        "required_level": "L1",
+                        "levels": {
+                            "L1": {
+                                "description": "real demo",
+                                "observed_patterns": [
+                                    "python real_demo.py",
+                                ],
+                            },
+                        },
+                    },
+                },
+                "compute": {},
+            }
+
+            policy_path.write_text(
+                json.dumps(policy, indent=2)
+                + "\n"
+            )
             def ctl(*a): return subprocess.run([os.sys.executable,str(CTL),"--root",str(repo),*a],env=env,text=True,capture_output=True)
             self.assertEqual(ctl("task","start","--objective","x","--class","mechanical","--acceptance","L1").returncode,0)
-            self.assertEqual(ctl("verification","plan","--entrypoint","real-entry","--protocol","real demo","--integration-observed","python real_demo.py","--acceptance-observed","python real_demo.py","--artifact-policy","none").returncode,0)
+            self.assertEqual(
+    ctl(
+        "verification",
+        "select",
+        "--profile",
+        "mechanical-l1",
+    ).returncode,
+    0,
+)
             event={"cwd":str(repo),"session_id":"s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"python real_demo.py"},"tool_use_id":"run1","tool_response":{"exit_code":0}}
             subprocess.run([os.sys.executable,str(GUARD)],input=json.dumps(event),text=True,env={**env,"PLUGIN_ROOT":str(ROOT)},stdout=subprocess.DEVNULL,check=True)
             self.assertEqual(ctl("integration","record","--entrypoint","real-entry","--evidence","real downstream consumed output","--observed","python real_demo.py").returncode,0)

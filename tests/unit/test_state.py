@@ -9,24 +9,78 @@ class StateTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name)/"repo"; self.root.mkdir(); (self.root/".codex").mkdir()
         self.data=Path(self.tmp.name)/"pdata"; os.environ["PLUGIN_DATA"]=str(self.data)
-        self.policy=json.loads(json.dumps(DEFAULT_POLICY)); self.policy["enabled"]=True; self.policy["git"]["require_clean_checkpoint"]=False
-        self.s=RigorState(self.root,self.policy)
+        self.policy["project"] = {
+            "configured": True,
+            "type": "test",
+            "entrypoints": {
+                "integration": "entry",
+                "evaluation": "entry",
+            },
+            "protected_surfaces": [],
+            "acceptance_profiles": {
+                "test-l2": {
+                    "required_level": "L2",
+                    "levels": {
+                        "L1": {
+                            "description": "real integration",
+                            "observed_patterns": [
+                                "python integration_demo.py",
+                            ],
+                        },
+                        "L2": {
+                            "description": "real update lifecycle",
+                            "observed_patterns": [
+                                "python integration_demo.py",
+                            ],
+                        },
+                    },
+                },
+            },
+            "compute": {},
+        }
+
+        self.s = RigorState(
+            self.root,
+            self.policy,
+        )
     def tearDown(self): self.tmp.cleanup(); os.environ.pop("PLUGIN_DATA",None)
     def test_research_design_acceptance(self):
         t=self.s.start_task("adapt mechanism","reference-adaptation","L2")
         self.s.record_observed_tool({"provider":"rg","kind":"local-code-search","tool_name":"Bash","query":"rg Foo .","tool_use_id":"local","success":True})
-        self.s.record_observed_tool({"provider":"github","kind":"upstream-tool","tool_name":"mcp__github__search_code","query":"Foo","tool_use_id":"upstream","success":True})
+        self.s.record_observed_tool({
+    "provider": "github",
+    "kind": "upstream-code-read",
+    "tool_name": "mcp__github__fetch_file",
+    "query": "repo@sha:a.py:Foo",
+    "tool_use_id": "upstream",
+    "success": True,
+})
         self.s.record_observed_tool({"provider":"exa","kind":"external-search","tool_name":"mcp__exa__search","query":"prior art","tool_use_id":"exa","success":True})
-        self.s.record_observed_tool({"provider":"local-literature","kind":"literature-tool","tool_name":"mcp__papermeld__read","query":"paper sec 3","tool_use_id":"paper","success":True})
+        self.s.record_observed_tool({
+    "provider": "local-literature",
+    "kind": "literature-read",
+    "tool_name": "mcp__papermeld__read",
+    "query": "paper sec 3",
+    "tool_use_id": "paper",
+    "success": True,
+})
         self.s.add_evidence("local-code","repo","a.py:Foo","current path","rg Foo")
         primary=self.s.add_evidence("primary-paper","paper","sec 3","mechanism","mcp__papermeld__read")
-        upstream=self.s.add_evidence("upstream-code","github","repo@sha:a.py:Foo","implementation","mcp__github__search_code")
+        upstream = self.s.add_evidence(
+    "upstream-code",
+    "github",
+    "repo@sha:a.py:Foo",
+    "implementation",
+    "mcp__github__fetch_file",
+)
         self.s.add_evidence("external-search","exa","query:x","current alternatives","mcp__exa__search")
         self.assertTrue(self.s.active_task()["gates"]["research"]["passed"])
         with self.assertRaises(ValueError):
             self.s.freeze_design("repo@sha:Foo","target.py:Bar","adapt Foo","entry->Bar","L2",[upstream["id"]])
         self.s.freeze_design("repo@sha:Foo","target.py:Bar","adapt Foo","entry->Bar","L2",[primary["id"],upstream["id"]])
-        self.s.freeze_verification_plan("entry","authoritative protocol",["python integration_demo.py"],["python integration_demo.py"],"fresh artifact if required")
+        self.s.select_verification_profile(
+    "test-l2"
+)
         bad_worker={
             "objective":"implement","reference":"different-reference","target":"target.py:Bar","method":"adapt",
             "integration":"entry->Bar","resources":"bounded","write_scope":"target.py","acceptance":"L1",
@@ -61,5 +115,44 @@ class StateTests(unittest.TestCase):
     def test_assignment_requires_contract(self):
         self.s.start_task("mechanical","mechanical","L1")
         with self.assertRaises(ValueError): self.s.create_assignment("worker",{"objective":"x"})
+    def test_upstream_search_is_discovery_only(self):
+        self.s.start_task(
+            "design",
+            "new-design",
+            "L1",
+        )
+
+        self.s.record_observed_tool({
+            "provider": "github",
+            "kind": "upstream-search",
+            "tool_name": "mcp__github__search_code",
+            "query": "Foo",
+            "tool_use_id": "search1",
+            "success": True,
+        })
+
+        with self.assertRaises(ValueError):
+            self.s.add_evidence(
+                "upstream-code",
+                "github",
+                "repo:a.py:Foo",
+                "implementation",
+                "search1",
+                stage="verified",
+            )
+
+        ev = self.s.add_evidence(
+            "upstream-code",
+            "github",
+            "repo:a.py:Foo",
+            "candidate implementation",
+            "search1",
+            stage="discovered",
+        )
+
+        self.assertEqual(
+            ev["stage"],
+            "discovered",
+        )
 
 if __name__=="__main__": unittest.main()

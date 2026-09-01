@@ -3,9 +3,53 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class Structure(unittest.TestCase):
     def test_manifest_and_hooks(self):
-        m=json.loads((ROOT/".codex-plugin"/"plugin.json").read_text()); self.assertEqual(m["name"],"rigor"); self.assertEqual(m["skills"],"./skills/"); self.assertEqual(m["hooks"],"./hooks/hooks.json")
-        h=json.loads((ROOT/"hooks"/"hooks.json").read_text())["hooks"]
-        for event in ["SessionStart","SubagentStart","SubagentStop","PreToolUse","PostToolUse","Stop","SessionEnd"]: self.assertIn(event,h)
+        m = json.loads(
+            (ROOT / ".codex-plugin" / "plugin.json").read_text()
+        )
+
+        self.assertEqual(m["name"], "rigor")
+        self.assertEqual(m["version"], "1.1.0")
+        self.assertEqual(m["skills"], "./skills/")
+        self.assertEqual(m["hooks"], "./hooks/hooks.json")
+
+        market = json.loads(
+            (
+                ROOT
+                / ".agents"
+                / "plugins"
+                / "marketplace.json"
+            ).read_text()
+        )
+
+        self.assertEqual(
+            market["plugins"][0]["name"],
+            m["name"],
+        )
+
+        h = json.loads(
+            (ROOT / "hooks" / "hooks.json").read_text()
+        )["hooks"]
+
+        for event in [
+            "SessionStart",
+            "PreCompact",
+            "SubagentStart",
+            "SubagentStop",
+            "PreToolUse",
+            "PostToolUse",
+            "Stop",
+        ]:
+            self.assertIn(event, h)
+
+        self.assertNotIn("SessionEnd", h)
+
+        for groups in h.values():
+            for group in groups:
+                for handler in group["hooks"]:
+                    self.assertIn(
+                        "commandWindows",
+                        handler,
+                    )
     def test_no_placeholders(self):
         bad=[]
         for p in ROOT.rglob("*"):

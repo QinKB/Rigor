@@ -59,7 +59,12 @@ class NewDesignEndToEnd(unittest.TestCase):
             ctl("evidence", "add", "--kind", "external-search", "--source", "exa", "--locator", "ExistingMechanism failure cases", "--summary", "current alternatives and failure reports", "--observed", "mcp__exa__web_search_exa")
 
             ctl("design", "freeze", "--reference", "org/repo@sha:file.py:Mechanism", "--reference-evidence", primary["id"], "--reference-evidence", upstream["id"], "--target", "model.py:Mechanism", "--method", "faithful adaptation preserving semantics", "--integration", "real_entry -> Mechanism -> downstream_consumer", "--acceptance", "L4")
-            ctl("verification", "plan", "--entrypoint", "real_entry", "--protocol", "real integration then authoritative evaluator", "--integration-observed", "python integration_check.py", "--acceptance-observed", "python authoritative_eval.py", "--artifact-policy", "fresh artifact if state is produced")
+            ctl(
+    "verification",
+    "select",
+    "--profile",
+    "model-change",
+)
 
             inspect_cmd = "python %s" % (ROOT / "scripts" / "inspect_resources.py")
             hook({"hook_event_name": "PostToolUse", "tool_name": "Bash", "tool_input": {"command": inspect_cmd}, "tool_use_id": "resources", "tool_response": {"exit_code": 0}})
@@ -83,7 +88,18 @@ class NewDesignEndToEnd(unittest.TestCase):
 
             write = hook({"hook_event_name": "PreToolUse", "tool_name": "apply_patch", "tool_input": {"patch": "change model.py"}, "tool_use_id": "write1"})
             self.assertEqual(write, {})
-            replan = ctl("verification", "plan", "--entrypoint", "changed", "--protocol", "weaker", "--integration-observed", "python easy.py", "--acceptance-observed", "python easy.py", "--artifact-policy", "none", ok=False)
+            replan = ctl(
+    "verification",
+    "select",
+    "--profile",
+    "weaker",
+    ok=False,
+)
+
+            self.assertNotEqual(
+                replan.returncode,
+                0,
+            )
             self.assertNotEqual(replan.returncode, 0)
 
             (repo / "model.py").write_text("VALUE = 2\n")

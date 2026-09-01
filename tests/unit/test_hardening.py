@@ -8,6 +8,45 @@ from rigor.state import RigorState
 from rigor.runtime import is_governed_mcp_write, is_repository_write_command, is_sensitive_repository_target, task_class_allows_sensitive_write, tool_write_targets
 
 class HardeningTests(unittest.TestCase):
+    def configure_profile(
+    self,
+    name,
+    required_level,
+    levels,
+):
+        project = self.policy.setdefault(
+            "project",
+            {},
+        )
+
+        project["configured"] = True
+        project["type"] = "test"
+        project["entrypoints"] = {
+            "integration": "entry",
+            "evaluation": "entry",
+        }
+        project["protected_surfaces"] = []
+        project.setdefault(
+            "acceptance_profiles",
+            {},
+        )
+        project.setdefault(
+            "compute",
+            {},
+        )
+
+        project["acceptance_profiles"][name] = {
+            "required_level": required_level,
+            "levels": {
+                level: {
+                    "description": "test " + level,
+                    "observed_patterns": patterns,
+                }
+                for level, patterns in levels.items()
+            },
+        }
+
+        self.s.policy = self.policy
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.root=Path(self.tmp.name)/'repo'; self.root.mkdir(); (self.root/'.codex').mkdir()
         os.environ['PLUGIN_DATA']=str(Path(self.tmp.name)/'data')
@@ -36,7 +75,19 @@ class HardeningTests(unittest.TestCase):
         self.s.record_observed_tool({'tool_name':'Bash','provider':'shell','kind':'execution','query':'python stale.py','tool_use_id':'old','success':True})
         import time; time.sleep(0.01)
         self.s.start_task('x','mechanical','L1')
-        self.s.freeze_verification_plan('entry','real',['python stale.py'],['python stale.py'],'none')
+        self.configure_profile(
+    "check",
+    "L1",
+    {
+        "L1": [
+            "python check.py",
+        ],
+    },
+)
+
+        self.s.select_verification_profile(
+            "check"
+        )
         with self.assertRaises(ValueError):
             self.s.record_integration('entry','stale evidence','python stale.py')
 
@@ -76,12 +127,46 @@ class HardeningTests(unittest.TestCase):
         task=self.s.pause_task('need to stop')
         self.assertEqual(task['status'],'paused')
 
-    def test_verification_plan_cannot_change_after_implementation_starts(self):
-        self.s.start_task('x','mechanical','L1')
-        self.s.freeze_verification_plan('entry','real',['python integration.py'],['python acceptance.py'],'none')
-        self.s.mark_implementation_started('apply_patch','write1')
+    def test_verification_profile_cannot_change_after_implementation_starts(self):
+        self.s.start_task(
+            "x",
+            "mechanical",
+            "L1",
+        )
+
+        self.configure_profile(
+            "real",
+            "L1",
+            {
+                "L1": [
+                    "python integration.py",
+                ],
+            },
+        )
+
+        self.configure_profile(
+            "weaker",
+            "L1",
+            {
+                "L1": [
+                    "python easy.py",
+                ],
+            },
+        )
+
+        self.s.select_verification_profile(
+            "real"
+        )
+
+        self.s.mark_implementation_started(
+            "apply_patch",
+            "write1",
+        )
+
         with self.assertRaises(ValueError):
-            self.s.freeze_verification_plan('changed','weaker',['python easy.py'],['python easy.py'],'none')
+            self.s.select_verification_profile(
+                "weaker"
+            )
 
     def test_resource_plan_requires_observation_and_project_gpu_minimum(self):
         self.policy['compute']['project_cuda_gpus']=2

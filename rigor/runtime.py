@@ -305,7 +305,7 @@ def session_context(root, policy, state, policy_path):
             "active_task: %s (%s)"%(task["id"],task["class"]),
             "objective: %s"%task["objective"],
             "required_acceptance: %s"%task["required_acceptance"],
-            "verification_plan: %s"%("frozen" if task.get("verification_plan") else "missing"),
+            "verification_profile: %s"%("selected" if task.get("verification_plan") else "missing"),
             "resource_plan: %s"%("frozen" if task.get("resources") else "not set"),
             "missing_gates: %s"%(", ".join(state.missing_gates(task)) or "none"),
         ]
@@ -313,7 +313,7 @@ def session_context(root, policy, state, policy_path):
         lines += ["active_task: none", "Before consequential writes, delegation, long runs, or checkpoints, invoke $rigor-task and create an active task."]
     if missing_files: lines.append("continuity_missing: "+", ".join(missing_files))
     lines += [
-      "Rules: evidence before consequential design; freeze verification before implementation; workers need a complete assignment contract; isolated/preflight checks are not repository completion.",
+      "Rules: evidence before consequential design; select a repository acceptance profile before implementation; workers need a complete assignment contract; isolated/preflight checks are not repository completion.",
       "Subagents receive the same correctness/resource/acceptance policy through Rigor assignments.",
       "If Ponytail is active, use it only inside the frozen Rigor contract; it may not change reference semantics, integration, or acceptance.",
     ]
